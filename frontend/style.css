@@ -1,0 +1,163 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; background: #f5f5f5; color: #333; }
+.grid-container { display: grid; grid-template-columns: 3fr 4fr 3fr; gap: 16px; height: 100vh; padding: 16px; }
+.panel { background: #fff; border-radius: 12px; padding: 20px; border: 1px solid #eaeaea; display: flex; flex-direction: column; }
+.panel-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+
+/* 🎯 Robot Class 타이틀 */
+.title-header { background: silver; padding: 20px; border-radius: 12px 12px 0 0; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+.title-header h1 {
+  font-size: 3rem;
+  font-weight: 1200;
+  color: yellow;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+
+  /* ✅ 굵은 검은 테두리 */
+  -webkit-text-stroke: 3px black;   /* 웹킷 브라우저 (크롬, 사파리) */
+  paint-order: stroke fill;         /* stroke가 먼저 그려지도록 */
+}
+
+.sub-title-header h2 { font-size: 2.5rem; font-weight: 900; color: red; letter-spacing: 3px; text-transform: uppercase;}
+
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 10px; border-bottom: 1px solid #ddd; text-align: center; }
+th { background: #222; color: #fbbf24; }
+tr.updated { background: rgba(251,191,36,0.2); transition: background 0.5s; }
+.empty-state { text-align: center; padding: 20px; color: #999; font-style: italic; }
+
+#mainTimer { font-family: 'Courier New', monospace; font-size: 3rem; font-weight: bold; margin: 20px 0; }
+/* --- Lap table layout --- */
+.lap-list {
+  max-height: 260px;
+  overflow-y: auto;
+  border-top: 1px solid #eee;
+}
+
+.lap-header, .lap-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr; /* LAP | 소요시간 | 총 시간 */
+  gap: 8px;
+  align-items: center;
+  font-family: 'Courier New', monospace;
+}
+
+.lap-header {
+  position: sticky;
+  top: 0;
+  background: #fafafa;
+  border-bottom: 1px solid #e6e6e6;
+  padding: 8px 4px;
+  font-weight: 700;
+  color: #555;
+}
+
+.lap-row {
+  padding: 8px 4px;
+  border-bottom: 1px solid #f0f0f0;
+  animation: fadeIn 0.2s ease forwards;
+}
+
+.lap-row span:nth-child(1) { opacity: 0.85; }     /* Lap n */
+.lap-row span:nth-child(2) { font-weight: 600; }   /* 소요시간 */
+.lap-row span:nth-child(3) { color: #666; }        /* 총 시간 */
+.lap-item { padding: 8px; border-bottom: 1px solid #eee; font-family: 'Courier New', monospace; animation: fadeIn 0.3s ease forwards; }
+@keyframes fadeIn { from {opacity:0;transform:translateY(10px);} to {opacity:1;transform:translateY(0);} }
+
+.result-box { background: #f8f9fa; padding: 16px; margin-top: 12px; border-left: 4px solid #4CAF50; border-radius: 8px; }
+.result-content { display: flex; justify-content: space-between; }
+
+.form-group { margin-bottom: 12px; }
+input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px; }
+button { padding: 10px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+#btnStart { background: #4285f4; color: #fff; }
+#btnStart:hover { background: #3367d6; }
+#btnReset { background: #f1f3f4; color: #333; }
+#btnReset:hover { background: #ddd; }
+.status-line { margin-top: 10px; padding: 8px; background: #f9f9f9; border-radius: 6px; font-size: 0.9rem; }
+
+#toastHost { position: fixed; top: 20px; right: 20px; z-index: 999; }
+.toast { background: #333; color: #fff; padding: 10px 16px; margin-bottom: 10px; border-radius: 4px; animation: toastIn 0.3s ease, toastOut 0.3s ease 2.2s forwards; }
+@keyframes toastIn { from {transform: translateX(100%);opacity:0;} to {transform: translateX(0);opacity:1;} }
+@keyframes toastOut { from {opacity:1;} to {opacity:0;} }
+
+
+/* ====== Fuller / Larger UI Overrides ====== */
+
+/* 전체 여백과 패널 패딩을 키워 시각적 밀도 낮추기 */
+.grid-container { gap: 24px; padding: 24px; }
+.panel { padding: 24px 28px; }
+
+/* 섹션 타이틀 더 큼직하게 */
+.panel-title { font-size: 1.5rem; }
+
+/* 메인 타이틀 더 크게 (가변) */
+.title-header h1 {
+  font-size: clamp(2.6rem, 3.5vw + 1rem, 2rem);
+}
+
+/* 메인 타이머를 크게 */
+#mainTimer {
+  font-size: clamp(3.2rem, 4.5vw + 1rem, 5rem);
+  margin: 24px 0;
+}
+
+/* 랩 리스트 영역을 패널 안에서 더 많이 차지하도록 */
+.lap-list {
+  max-height: calc(100vh - 360px); /* 헤더/타이머 등을 고려한 가변 높이 */
+  border-top: 1px solid #eee;
+}
+
+/* 랩 헤더/행 크기 상향 */
+.lap-header { padding: 12px 6px; font-size: 1.05rem; }
+.lap-row { padding: 14px 6px; font-size: 1.1rem; }
+
+/* 리더보드 표: 행 높이/패딩/폰트 키우기 */
+table { font-size: 1.05rem; }
+th, td { padding: 14px 12px; }
+tbody tr { height: 56px; }       /* 세로로 넉넉하게 */
+thead th { font-size: 1.05rem; }
+
+/* 입력·버튼도 큼직하게 */
+input { padding: 10px 12px; font-size: 1rem; }
+button { padding: 12px 14px; font-size: 1rem; }
+
+/* 결과 박스 여백도 살짝 확대 */
+.result-box { padding: 18px; margin-top: 16px; }
+.result-content { gap: 12px; }
+
+/* ===== 점수판(리더보드) 전용 테마 ===== */
+#leaderboard {
+  background: #333;               /* 패널 배경: 짙은 회색 */
+  border-color: #444;
+  color: #ffeb3b;                 /* 기본 글자: 노란색 */
+}
+
+#leaderboard .panel-title {
+  color: #ffeb3b;
+  border-bottom: 1px solid #555;  /* 타이틀 하단선도 어둡게 */
+}
+
+#leaderboard .panel-content { color: #ffeb3b; }
+
+/* 표 스타일 오버라이드 */
+#leaderboard table { background: transparent; }
+
+#leaderboard thead th {
+  background: #444;               /* 헤더 셀 배경 */
+  color: #ffeb3b;                 /* 헤더 텍스트 */
+}
+
+#leaderboard th,
+#leaderboard td {
+  color: #ffeb3b;                 /* 본문 셀 텍스트 */
+  border-bottom: 1px solid rgba(255,255,255,0.15);  /* 테이블 구분선 */
+}
+
+#leaderboard tr.updated {         /* 업데이트 강조 색상도 노란 톤으로 */
+  background: rgba(255, 235, 59, 0.12);
+}
+
+#leaderboard .empty-state {
+  color: rgba(255, 235, 59, 0.85);
+}

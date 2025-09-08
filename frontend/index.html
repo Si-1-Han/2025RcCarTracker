@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Robot Land Race Timer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="grid-container">
+    <!-- Leaderboard -->
+    <div class="panel" id="leaderboard">
+      <div class="panel-title">점수판</div>
+      <div class="panel-content">
+        <table>
+          <thead>
+            <tr><th>순위</th><th>이름</th><th>Laps</th><th>평균(s)</th></tr>
+          </thead>
+          <tbody id="leaderboardBody"></tbody>
+        </table>
+        <div id="leaderboardEmpty" class="empty-state">No race data available</div>
+      </div>
+    </div>
+
+    <!-- Timer -->
+    <div class="panel" id="racePanel">
+      <div class="title-header"><h1>마산로봇랜드 로봇스쿨</h1></div>
+<!--        <div class="sub-title-header"><h2>로봇스쿨</h2></div>-->
+      <div class="panel-content">
+        <div id="mainTimer">00:00.000</div>
+        <!-- Lap List -->
+        <div class="lap-list" id="lapList">
+          <div class="lap-header">
+            <span>LAP</span>
+            <span>소요시간</span>
+            <span>총 시간</span>
+          </div>
+          <div id="lapRows"></div>
+        </div>
+        <div id="resultBox" class="result-box" style="display:none;">
+          <div class="result-title">Race Completed</div>
+          <div class="result-content">
+            <div>Average: <span id="avgTimeSec">0.000</span>s</div>
+            <div>Rank: <span id="rankBadge">N/A</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="panel" id="controls">
+      <div class="panel-title">새 레이스</div>
+      <div class="panel-content">
+        <div class="form-group">
+          <label for="driverName">참가자</label>
+          <input type="text" id="driverName">
+        </div>
+        <div class="form-group">
+          <label for="totalLaps">바퀴 수</label>
+          <input type="number" id="totalLaps" min="1" value="5">
+        </div>
+        <button id="btnStart">경주 시작하기</button>
+        <button id="btnReset">초기화</button>
+        <div class="status-line" id="statusLine">Ready to start</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastHost"></div>
+  <script src="app.js"></script>
+</body>
+</html>
