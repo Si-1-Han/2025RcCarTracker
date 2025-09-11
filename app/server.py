@@ -81,7 +81,7 @@ def get_leaderboard():
 def laps():
     status = get_current_laps() or {}
 
-    # ✅ rank는 리더보드에서 runner 이름을 찾아 그대로 가져오기
+    # rank 계산 (네가 쓰던 방식 유지)
     rank = None
     if status.get("ended"):
         data = load_leaderboard()
@@ -93,10 +93,13 @@ def laps():
     return jsonify({
         "laps": status.get("lap_times", []),
         "status": "ENDED" if status.get("ended") else "RACING",
-        "avg_lap_time": status.get("avg_lap_time"),
+        "avg_lap_time": status.get("avg_lap_time"),   # ms
         "rank": rank if rank is not None else "N/A",
         "start_time": status.get("start_time"),
+        "name": runner.get("name"),                   # ✅ 추가
+        "total_laps": runner.get("total_laps"),
     })
+
 
 # ── 실행 ────────────────────────────────────────────────
 def run():

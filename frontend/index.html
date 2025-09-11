@@ -37,13 +37,32 @@
           </div>
           <div id="lapRows"></div>
         </div>
-        <div id="resultBox" class="result-box" style="display:none;">
-          <div class="result-title">Race Completed</div>
-          <div class="result-content">
-            <div>Average: <span id="avgTimeSec">0.000</span>s</div>
-            <div>Rank: <span id="rankBadge">N/A</span></div>
+        <!-- ✅ RESULT: 20pt 요약상자 -->
+        <div id="resultBox" class="hidden"
+             style="font-size:20pt; line-height:1.35; font-weight:700;
+                    background:#fff; border-radius:16px; padding:18px;
+                    box-shadow:0 10px 20px rgba(0,0,0,.08); text-align:center;">
+          <div style="font-weight:800; color:#4f46e5; margin-bottom:10px;">
+            🏁 Race Completed
+          </div>
+
+          <div style="margin:6px 0;">
+            <span style="color:#374151;">name:</span>
+            <span id="rcName">-</span>
+          </div>
+
+          <div style="margin:6px 0;">
+            <span style="color:#374151;">Average:</span>
+            <span id="rcAvg">-</span>
+            <span style="color:#374151;">s</span>
+          </div>
+
+          <div style="margin:6px 0;">
+            <span style="color:#374151;">Rank:</span>
+            <span id="rcRank">-</span>
           </div>
         </div>
+
       </div>
     </div>
 

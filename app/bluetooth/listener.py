@@ -90,20 +90,20 @@ def handle_message(line, insert_result_callback):
 
             publish_lap(seg)
 
-            # 마지막 랩 완료 처리
+            # 마지막 랩까지 도달했을 때 처리
             if len(lap_data[name]) >= total:
-                start = lap_data[name][0]
-                end = lap_data[name][-1]
-                duration = end - start
-                avg = duration // total
+                laps = lap_data[name]
+                durations = [laps[i] - laps[i - 1] for i in range(1, len(laps))]
+                avg = sum(durations) // len(durations)
 
                 race_status["ended"] = True
                 race_status["avg_time"] = avg
-                race_status["start_time"] = start
+                race_status["start_time"] = laps[0]
 
                 insert_result_callback(name, total, avg)
-                publish_race_ended(end)
                 print(f"✅ {name} 완료! 평균: {avg}ms")
+
+
 
         except ValueError:
             print("⚠️ LAP 값 파싱 실패")

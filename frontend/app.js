@@ -10,8 +10,9 @@ let cumulativeMs = 0;       // 누적 총 시간(ms)
 const mainTimer = document.getElementById("mainTimer");
 const lapList = document.getElementById("lapList");
 const resultBox = document.getElementById("resultBox");
-const avgTimeSec = document.getElementById("avgTimeSec");
-const rankBadge = document.getElementById("rankBadge");
+const rcName = document.getElementById("rcName");
+const rcAvg  = document.getElementById("rcAvg");
+const rcRank = document.getElementById("rcRank");
 const statusLine = document.getElementById("statusLine");
 const leaderboardBody = document.getElementById("leaderboardBody");
 const leaderboardEmpty = document.getElementById("leaderboardEmpty");
@@ -156,9 +157,13 @@ function initSSE(){
       const r = await fetch(BASE_URL + "/laps");
       const d = await r.json();
 
+      // d.name, d.avg_lap_time(ms), d.rank 가 /laps 응답에 있어야 함
+      rcName.textContent = d.name || "-";
+      rcAvg.textContent  = (d.avg_lap_time > 0) ? (d.avg_lap_time/1000).toFixed(2) : "-";
+      rcRank.textContent = (typeof d.rank === "number") ? d.rank : "N/A";
+
       resultBox.style.display = "block";
-      avgTimeSec.textContent = "-";  // ★ 평균 비표시 정책
-      rankBadge.textContent = (typeof d.rank === "number") ? d.rank : "N/A";
+
       fetchLeaderboard();
     }catch(e){ console.error(e); }
   });

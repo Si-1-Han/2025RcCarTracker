@@ -30,8 +30,8 @@ def get_current_laps():
         return {
             "lap_times": [],
             "ended": False,
-            "avg_lap_time": 0,          # ms
-            "avg_time": 0,              # 호환키
+            "avg_lap_time": 0,
+            "avg_time": 0,
             "rank": None,
             "start_time": race_status.get("start_time"),
         }
@@ -39,20 +39,17 @@ def get_current_laps():
     laps = lap_data[name]
     ended = len(laps) >= total
 
-    # ✅ 표준 평균(ms): (end - start) / total
     avg_ms = 0
-    if laps and ended:
-        start = laps[0]
-        end = laps[-1]
-        avg_ms = (end - start) // total
+    if ended and len(laps) > 1:
+        # 각 랩 간격 계산
+        durations = [laps[i] - laps[i-1] for i in range(1, len(laps))]
+        avg_ms = sum(durations) // len(durations)
 
     return {
         "lap_times": laps,
         "ended": ended,
-        "avg_lap_time": avg_ms,        # ms (서버/프론트에서 이 키 사용)
-        "avg_time": avg_ms,            # 혹시 참조하는 곳 있을까봐 같이 내려줌
+        "avg_lap_time": avg_ms,  # ms
+        "avg_time": avg_ms,      # 호환 키
         "rank": None,
         "start_time": race_status.get("start_time"),
     }
-
-
