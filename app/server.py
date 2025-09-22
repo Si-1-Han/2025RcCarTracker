@@ -9,6 +9,7 @@ from app.bluetooth.communication import set_target_runner, reset_lap_data, get_c
 from app.leaderboard import load_leaderboard, save_leaderboard, insert_result
 from app.bluetooth.state import runner
 from app.events import sse_generator   # ✅ events.py의 SSE 제너레이터 사용
+from app.config import CONFIG  # ✅ CONFIG 추가
 
 # ── 프로젝트 경로 설정 ───────────────────────────────────
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -43,6 +44,7 @@ def serve_static(filename):
     return send_from_directory(FRONTEND_DIR, filename)
 
 # ── API 엔드포인트 ──────────────────────────────────────
+
 @app.post("/start")
 def start_race():
     data = request.get_json() or {}
@@ -52,9 +54,16 @@ def start_race():
     if not name or not laps:
         return jsonify({"error": "Missing name or laps"}), 400
 
+    # ✅ CONFIG 기반 검증
+    if not isinstance(name, str) or len(name.strip()) == 0:
+        return jsonify({"error": "Invalid driver name"}), 400
+    
+    if not isinstance(laps, int) or laps < CONFIG.race.min_laps or laps > CONFIG.race.max_laps:
+        return jsonify({"error": f"Laps must be between {CONFIG.race.min_laps} and {CONFIG.race.max_laps}"}), 400
+
     try:
-        set_target_runner(name, int(laps))
-        return jsonify({"message": "Race started"}), 200
+        set_target_runner(name.strip(), int(laps))
+        return jsonify({"message": "Race started", "driver": name.strip(), "laps": laps}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -100,8 +109,26 @@ def laps():
         "total_laps": runner.get("total_laps"),
     })
 
+# ✅ 설정 정보 API 추가
+@app.get("/api/config")
+def get_config():
+    """현재 설정 정보 반환 (민감한 정보 제외)"""
+    return jsonify({
+        "serial_port": CONFIG.serial.port,
+        "serial_baudrate": CONFIG.serial.baudrate,
+        "max_leaderboard_entries": CONFIG.race.max_leaderboard_entries,
+        "min_laps": CONFIG.race.min_laps,
+        "max_laps": CONFIG.race.max_laps,
+        "default_laps": CONFIG.race.default_laps,
+        "debug_mode": CONFIG.server.debug
+    })
 
 # ── 실행 ────────────────────────────────────────────────
 def run():
     Thread(target=start_listener, args=(insert_result,), daemon=True).start()
-    app.run(debug=False)
+    # ✅ CONFIG 기반 서버 실행
+    app.run(
+        debug=CONFIG.server.debug,
+        host=CONFIG.server.host,
+        port=CONFIG.server.port
+    )

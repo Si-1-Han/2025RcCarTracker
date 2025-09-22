@@ -11,9 +11,11 @@ from app.events import (
     publish_lap,
     publish_race_ended,
 )
+from app.config import CONFIG
 
-BAUDRATE = 9600
-LISTENING_PORT = "COM5"
+# ✅ CONFIG에서 설정값 가져오기
+BAUDRATE = CONFIG.serial.baudrate
+LISTENING_PORT = CONFIG.serial.port
 
 # ✅ 전역 시리얼 핸들
 SER_HANDLE = None
@@ -43,9 +45,9 @@ def start_listener(insert_result_callback):
     def listen():
         global SER_HANDLE
         try:
-            with serial.Serial(LISTENING_PORT, BAUDRATE, timeout=1) as ser:
+            with serial.Serial(LISTENING_PORT, BAUDRATE, timeout=CONFIG.serial.timeout) as ser:
                 SER_HANDLE = ser  # ✅ 전역 핸들 보관
-                print(f"📡 Listening on {LISTENING_PORT}...")
+                print(f"📡 Listening on {LISTENING_PORT} (baudrate: {BAUDRATE})...")
                 while True:
                     if ser.in_waiting:
                         raw = ser.readline()
@@ -102,8 +104,6 @@ def handle_message(line, insert_result_callback):
 
                 insert_result_callback(name, total, avg)
                 print(f"✅ {name} 완료! 평균: {avg}ms")
-
-
 
         except ValueError:
             print("⚠️ LAP 값 파싱 실패")

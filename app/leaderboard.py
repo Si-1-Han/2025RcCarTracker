@@ -1,18 +1,26 @@
 # leaderboard.py
 import json
 from pathlib import Path
+from app.config import CONFIG
 
-LEADERBOARD_FILE = Path("data/leaderboard.json")
+# ✅ CONFIG에서 경로 가져오기
+LEADERBOARD_FILE = Path(CONFIG.data.leaderboard_path)
 
 def load_leaderboard():
+    # 데이터 디렉토리가 없으면 생성
+    LEADERBOARD_FILE.parent.mkdir(parents=True, exist_ok=True)
+    
     if LEADERBOARD_FILE.exists():
-        with open(LEADERBOARD_FILE, "r") as f:
+        with open(LEADERBOARD_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     return []
 
 def save_leaderboard(data):
-    with open(LEADERBOARD_FILE, "w") as f:
-        json.dump(data, f, indent=2)
+    # 데이터 디렉토리가 없으면 생성
+    LEADERBOARD_FILE.parent.mkdir(parents=True, exist_ok=True)
+    
+    with open(LEADERBOARD_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
 
 def insert_result(name, laps, avg_lap_time):
     board = load_leaderboard()
@@ -23,7 +31,8 @@ def insert_result(name, laps, avg_lap_time):
         "avg_lap_time_sec": round(avg_lap_time / 1000, 2)  # 초 단위 추가
     })
     board.sort(key=lambda x: x["avg_lap_time"])
-    board = board[:10]
+    # ✅ CONFIG에서 최대 항목 수 가져오기
+    board = board[:CONFIG.race.max_leaderboard_entries]
 
     for i, entry in enumerate(board):
         entry["rank"] = i + 1

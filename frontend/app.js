@@ -1,183 +1,446 @@
-// app.js
-const BASE_URL = "";
-
-let timerInterval = null;
-let startTsSensor = null;   // 센서 기준 시작 timestamp(ms)
-let startWallClock = null;  // 브라우저 벽시계 기준 시작 시각(ms)
-let lapCount = 0;
-let cumulativeMs = 0;       // 누적 총 시간(ms)
-
-const mainTimer = document.getElementById("mainTimer");
-const lapList = document.getElementById("lapList");
-const resultBox = document.getElementById("resultBox");
-const rcName = document.getElementById("rcName");
-const rcAvg  = document.getElementById("rcAvg");
-const rcRank = document.getElementById("rcRank");
-const statusLine = document.getElementById("statusLine");
-const leaderboardBody = document.getElementById("leaderboardBody");
-const leaderboardEmpty = document.getElementById("leaderboardEmpty");
-
-function pad(n, w){ return String(n).padStart(w,'0'); }
-function fmt(ms){
-  const m = Math.floor(ms/60000);
-  const s = Math.floor((ms%60000)/1000);
-  const x = ms%1000;
-  return `${pad(m,2)}:${pad(s,2)}.${pad(x,3)}`;
-}
-
-/** 랩 리스트에 헤더(LAP|소요시간|총 시간)와 행 컨테이너(#lapRows)를 보장 */
-function ensureLapTable() {
-  let rows = document.getElementById("lapRows");
-  if (!rows) {
-    lapList.innerHTML = `
-      <div class="lap-header">
-        <span>LAP</span>
-        <span>소요시간</span>
-        <span>총 시간</span>
-      </div>
-      <div id="lapRows"></div>
-    `;
-    rows = document.getElementById("lapRows");
+// 개선된 app.js
+class RaceTimerApp {
+  constructor() {
+    this.BASE_URL = "";
+    this.timerInterval = null;
+    this.startTsSensor = null;
+    this.startWallClock = null;
+    this.lapCount = 0;
+    this.cumulativeMs = 0;
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 5;
+    this.eventSource = null;
+    this.config = null; // 서버 설정 정보
+    
+    this.initializeElements();
+    this.bindEvents();
+    this.init();
   }
-  return rows;
-}
-
-/** 한 줄 렌더링: Lap n | seg | total */
-function renderLapRow(idx, segMs, totalMs){
-  const rows = ensureLapTable();
-  const row = document.createElement("div");
-  row.className = "lap-row";
-  row.innerHTML = `
-    <span>Lap ${idx}</span>
-    <span>${fmt(segMs)}</span>
-    <span>${fmt(totalMs)}</span>
-  `;
-  rows.appendChild(row);
-  lapList.scrollTop = lapList.scrollHeight;
-}
-
-function startUiTimer(sensorStartTs){
-  // 센서 ts와 현재 벽시계 사이의 오프셋으로 '흐르는' 타이머를 만든다.
-  startTsSensor = sensorStartTs;
-  startWallClock = Date.now();
-  if (timerInterval) clearInterval(timerInterval);
-  timerInterval = setInterval(()=>{
-    const elapsed = Date.now() - startWallClock; // 브라우저 기준 경과
-    mainTimer.textContent = fmt(elapsed);
-  }, 50);
-}
-
-function stopUiTimer(){
-  if (timerInterval) clearInterval(timerInterval);
-  timerInterval = null;
-}
-
-async function fetchLeaderboard(){
-  try{
-    const r = await fetch(BASE_URL + "/result");
-    const data = await r.json();
-    leaderboardBody.innerHTML = "";
-    if(!data || !data.length){
-      leaderboardEmpty.style.display = "block";
+  
+  initializeElements() {
+    // DOM 요소 캐싱
+    this.elements = {
+      mainTimer: document.getElementById("mainTimer"),
+      lapList: document.getElementById("lapList"),
+      resultBox: document.getElementById("resultBox"),
+      rcName: document.getElementById("rcName"),
+      rcAvg: document.getElementById("rcAvg"),
+      rcRank: document.getElementById("rcRank"),
+      statusLine: document.getElementById("statusLine"),
+      leaderboardBody: document.getElementById("leaderboardBody"),
+      leaderboardEmpty: document.getElementById("leaderboardEmpty"),
+      driverName: document.getElementById("driverName"),
+      totalLaps: document.getElementById("totalLaps"),
+      btnStart: document.getElementById("btnStart"),
+      btnReset: document.getElementById("btnReset"),
+      toastHost: document.getElementById("toastHost")
+    };
+  }
+  
+  bindEvents() {
+    this.elements.btnStart.onclick = () => this.startRace();
+    this.elements.btnReset.onclick = () => this.resetRace();
+    
+    // 엔터키로 레이스 시작
+    this.elements.driverName.onkeypress = (e) => {
+      if (e.key === 'Enter') this.startRace();
+    };
+    this.elements.totalLaps.onkeypress = (e) => {
+      if (e.key === 'Enter') this.startRace();
+    };
+    
+    // 페이지 언로드 시 정리
+    window.addEventListener('beforeunload', () => {
+      this.cleanup();
+    });
+  }
+  
+  // 유틸리티 함수들
+  pad(n, w) {
+    return String(n).padStart(w, '0');
+  }
+  
+  formatTime(ms) {
+    const m = Math.floor(ms / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    const x = ms % 1000;
+    return `${this.pad(m, 2)}:${this.pad(s, 2)}.${this.pad(x, 3)}`;
+  }
+  
+  showToast(message, type = 'info', duration = 3000) {
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    
+    const colors = {
+      info: '#3b82f6',
+      success: '#10b981',
+      warning: '#f59e0b',
+      error: '#ef4444'
+    };
+    
+    toast.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 12px 20px;
+      border-radius: 8px;
+      background-color: ${colors[type] || colors.info};
+      color: white;
+      font-weight: 500;
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    `;
+    
+    this.elements.toastHost.appendChild(toast);
+    
+    // 애니메이션
+    setTimeout(() => toast.style.opacity = '1', 10);
+    
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      setTimeout(() => {
+        if (toast.parentNode) {
+          toast.parentNode.removeChild(toast);
+        }
+      }, 300);
+    }, duration);
+  }
+  
+  async makeRequest(url, options = {}) {
+    try {
+      const response = await fetch(this.BASE_URL + url, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers
+        },
+        ...options
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}`);
+      }
+      
+      return data;
+    } catch (error) {
+      console.error(`Request failed: ${url}`, error);
+      throw error;
+    }
+  }
+  
+  validateInputs() {
+    const name = this.elements.driverName.value.trim();
+    const laps = parseInt(this.elements.totalLaps.value);
+    
+    const errors = [];
+    
+    if (!name) {
+      errors.push("참가자 이름을 입력해주세요");
+    } else if (name.length > 20) {
+      errors.push("참가자 이름은 20자 이내로 입력해주세요");
+    } else if (!/^[가-힣a-zA-Z0-9\s]+$/.test(name)) {
+      errors.push("참가자 이름에 특수문자는 사용할 수 없습니다");
+    }
+    
+    if (!laps || isNaN(laps)) {
+      errors.push("유효한 랩 수를 입력해주세요");
+    } else if (this.config) {
+      // 서버 설정 기반 검증
+      if (laps < this.config.min_laps) {
+        errors.push(`최소 ${this.config.min_laps}랩 이상 설정해주세요`);
+      } else if (laps > this.config.max_laps) {
+        errors.push(`최대 ${this.config.max_laps}랩까지 설정 가능합니다`);
+      }
+    }
+    
+    return { valid: errors.length === 0, errors, name, laps };
+  }
+  
+  ensureLapTable() {
+    let rows = document.getElementById("lapRows");
+    if (!rows) {
+      this.elements.lapList.innerHTML = `
+        <div class="lap-header">
+          <span>LAP</span>
+          <span>소요시간</span>
+          <span>총 시간</span>
+        </div>
+        <div id="lapRows"></div>
+      `;
+      rows = document.getElementById("lapRows");
+    }
+    return rows;
+  }
+  
+  renderLapRow(idx, segMs, totalMs) {
+    const rows = this.ensureLapTable();
+    const row = document.createElement("div");
+    row.className = "lap-row";
+    row.innerHTML = `
+      <span>Lap ${idx}</span>
+      <span>${this.formatTime(segMs)}</span>
+      <span>${this.formatTime(totalMs)}</span>
+    `;
+    rows.appendChild(row);
+    this.elements.lapList.scrollTop = this.elements.lapList.scrollHeight;
+  }
+  
+  startUiTimer(sensorStartTs) {
+    this.startTsSensor = sensorStartTs;
+    this.startWallClock = Date.now();
+    
+    if (this.timerInterval) {
+      clearInterval(this.timerInterval);
+    }
+    
+    this.timerInterval = setInterval(() => {
+      const elapsed = Date.now() - this.startWallClock;
+      this.elements.mainTimer.textContent = this.formatTime(elapsed);
+    }, 50);
+  }
+  
+  stopUiTimer() {
+    if (this.timerInterval) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = null;
+    }
+  }
+  
+  async fetchConfig() {
+    try {
+      this.config = await this.makeRequest("/api/config");
+      
+      // 설정 기반 UI 업데이트
+      if (this.config.default_laps) {
+        this.elements.totalLaps.value = this.config.default_laps;
+      }
+      
+      // 상태 표시에 설정 정보 추가
+      const configInfo = `포트: ${this.config.serial_port} | 최대 랩: ${this.config.max_laps}`;
+      this.elements.statusLine.title = configInfo;
+      
+    } catch (error) {
+      console.error("Failed to fetch config:", error);
+    }
+  }
+  
+  async fetchLeaderboard() {
+    try {
+      const data = await this.makeRequest("/result");
+      
+      this.elements.leaderboardBody.innerHTML = "";
+      
+      if (!data || !data.length) {
+        this.elements.leaderboardEmpty.style.display = "block";
+        return;
+      }
+      
+      this.elements.leaderboardEmpty.style.display = "none";
+      
+      data.forEach((entry, i) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${entry.rank || (i + 1)}</td>
+          <td>${entry.name}</td>
+          <td>${entry.laps}</td>
+          <td>${entry.avg_lap_time}</td>
+        `;
+        this.elements.leaderboardBody.appendChild(tr);
+      });
+      
+    } catch (error) {
+      console.error("Failed to fetch leaderboard:", error);
+      this.showToast("리더보드를 불러오는데 실패했습니다", "error");
+    }
+  }
+  
+  async startRace() {
+    const validation = this.validateInputs();
+    
+    if (!validation.valid) {
+      validation.errors.forEach(error => {
+        this.showToast(error, "warning");
+      });
       return;
     }
-    leaderboardEmpty.style.display = "none";
-    data.forEach((e,i)=>{
-      const tr = document.createElement("tr");
-      // /result는 초 단위(avg_lap_time)로 내려오도록 서버에서 이미 처리됨
-      tr.innerHTML = `<td>${i+1}</td><td>${e.name}</td><td>${e.laps}</td><td>${e.avg_lap_time}</td>`;
-      leaderboardBody.appendChild(tr);
+    
+    try {
+      this.elements.btnStart.disabled = true;
+      this.elements.statusLine.textContent = "레이스 시작 중...";
+      
+      const result = await this.makeRequest("/start", {
+        method: "POST",
+        body: JSON.stringify({
+          name: validation.name,
+          laps: validation.laps
+        })
+      });
+      
+      this.showToast(`${result.driver}님의 ${result.laps}랩 레이스가 시작되었습니다`, "success");
+      this.elements.statusLine.textContent = "레이스 시작됨 (센서 대기 중...)";
+      
+      // UI 리셋
+      this.lapCount = 0;
+      this.cumulativeMs = 0;
+      const rows = this.ensureLapTable();
+      rows.innerHTML = "";
+      this.elements.resultBox.style.display = "none";
+      
+    } catch (error) {
+      console.error("Failed to start race:", error);
+      this.showToast(`레이스 시작 실패: ${error.message}`, "error");
+      this.elements.statusLine.textContent = "레이스 시작 실패";
+    } finally {
+      this.elements.btnStart.disabled = false;
+    }
+  }
+  
+  async resetRace() {
+    if (!confirm("정말로 모든 데이터를 초기화하시겠습니까?")) {
+      return;
+    }
+    
+    try {
+      this.elements.btnReset.disabled = true;
+      this.elements.statusLine.textContent = "초기화 중...";
+      
+      await this.makeRequest("/reset", { method: "POST" });
+      
+      this.stopUiTimer();
+      this.elements.mainTimer.textContent = "00:00.000";
+      this.lapCount = 0;
+      this.cumulativeMs = 0;
+      
+      const rows = this.ensureLapTable();
+      rows.innerHTML = "";
+      this.elements.resultBox.style.display = "none";
+      
+      this.showToast("초기화가 완료되었습니다", "success");
+      this.elements.statusLine.textContent = "초기화 완료";
+      
+      await this.fetchLeaderboard();
+      
+    } catch (error) {
+      console.error("Failed to reset race:", error);
+      this.showToast(`초기화 실패: ${error.message}`, "error");
+      this.elements.statusLine.textContent = "초기화 실패";
+    } finally {
+      this.elements.btnReset.disabled = false;
+    }
+  }
+  
+  initSSE() {
+    if (this.eventSource) {
+      this.eventSource.close();
+    }
+    
+    this.eventSource = new EventSource(this.BASE_URL + "/events");
+    
+    this.eventSource.addEventListener("race_started", (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        this.startUiTimer(data.ts);
+        this.lapCount = 0;
+        this.cumulativeMs = 0;
+        
+        const rows = this.ensureLapTable();
+        rows.innerHTML = "";
+        
+        this.elements.statusLine.textContent = "레이스 진행 중";
+        this.showToast("레이스가 시작되었습니다!", "success");
+      } catch (error) {
+        console.error("Error handling race_started event:", error);
+      }
     });
-  }catch(e){ console.error(e); }
+    
+    this.eventSource.addEventListener("lap", (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        this.lapCount += 1;
+        this.cumulativeMs += data.ms;
+        this.renderLapRow(this.lapCount, data.ms, this.cumulativeMs);
+      } catch (error) {
+        console.error("Error handling lap event:", error);
+      }
+    });
+    
+    this.eventSource.addEventListener("race_ended", async (ev) => {
+      try {
+        this.stopUiTimer();
+        this.elements.statusLine.textContent = "레이스 완료";
+        this.showToast("레이스가 완료되었습니다!", "success");
+        
+        // 결과 정보 가져오기
+        const result = await this.makeRequest("/laps");
+        
+        this.elements.rcName.textContent = result.name || "-";
+        this.elements.rcAvg.textContent = result.avg_lap_time > 0 
+          ? (result.avg_lap_time / 1000).toFixed(2) 
+          : "-";
+        this.elements.rcRank.textContent = typeof result.rank === "number" 
+          ? `${result.rank}위` 
+          : "N/A";
+        
+        this.elements.resultBox.style.display = "block";
+        
+        await this.fetchLeaderboard();
+        
+      } catch (error) {
+        console.error("Error handling race_ended event:", error);
+        this.showToast("결과 처리 중 오류가 발생했습니다", "error");
+      }
+    });
+    
+    this.eventSource.onerror = (error) => {
+      console.error("SSE error:", error);
+      
+      if (this.reconnectAttempts < this.maxReconnectAttempts) {
+        this.reconnectAttempts++;
+        this.elements.statusLine.textContent = `연결 재시도 중... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`;
+        
+        setTimeout(() => {
+          this.initSSE();
+        }, 2000 * this.reconnectAttempts);
+      } else {
+        this.elements.statusLine.textContent = "서버 연결 실패 (페이지 새로고침 필요)";
+        this.showToast("서버와의 연결이 끊어졌습니다", "error");
+      }
+    };
+    
+    this.eventSource.addEventListener("open", () => {
+      this.reconnectAttempts = 0;
+      if (this.elements.statusLine.textContent.includes("연결")) {
+        this.elements.statusLine.textContent = "준비 완료";
+      }
+    });
+  }
+  
+  cleanup() {
+    this.stopUiTimer();
+    if (this.eventSource) {
+      this.eventSource.close();
+    }
+  }
+  
+  async init() {
+    try {
+      await this.fetchConfig();
+      await this.fetchLeaderboard();
+      this.ensureLapTable();
+      this.initSSE();
+      this.elements.statusLine.textContent = "준비 완료";
+    } catch (error) {
+      console.error("Initialization error:", error);
+      this.elements.statusLine.textContent = "초기화 오류";
+      this.showToast("애플리케이션 초기화에 실패했습니다", "error");
+    }
+  }
 }
 
-// --- Controls (start/reset) ---
-const driverName = document.getElementById("driverName");
-const totalLaps = document.getElementById("totalLaps");
-
-document.getElementById("btnStart").onclick = async ()=>{
-  const name = driverName.value.trim();
-  const laps = parseInt(totalLaps.value);
-  if(!name || !laps || laps < 1){ statusLine.textContent = "Please enter name/laps"; return; }
-  await fetch(BASE_URL + "/start", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, laps })
-  });
-  statusLine.textContent = "Race started (waiting sensor...)";
-  // 타이머는 센서가 start를 알려줄 때 시작한다 (race_started 이벤트)
-  lapCount = 0;
-  cumulativeMs = 0; // ★ 누적 초기화
-  const rows = ensureLapTable();
-  rows.innerHTML = ""; // 표만 초기화(헤더 보존)
-  resultBox.style.display = "none";
-};
-
-document.getElementById("btnReset").onclick = async ()=>{
-  await fetch(BASE_URL + "/reset", { method: "POST" });
-  stopUiTimer();
-  mainTimer.textContent = "00:00.000";
-  lapCount = 0;
-  cumulativeMs = 0;
-  const rows = ensureLapTable();
-  rows.innerHTML = "";
-  resultBox.style.display = "none";
-  statusLine.textContent = "Reset done";
-  fetchLeaderboard();
-};
-
-// --- SSE ---
-function initSSE(){
-  const es = new EventSource(BASE_URL + "/events");
-
-  es.addEventListener("race_started", (ev)=>{
-    const data = JSON.parse(ev.data); // { ts }
-    // data.ts: 센서 기준 시작 timestamp(ms)
-    startUiTimer(data.ts);
-    lapCount = 0;
-    cumulativeMs = 0; // ★ race 시작 시 누적 초기화
-    const rows = ensureLapTable();
-    rows.innerHTML = "";
-    statusLine.textContent = "Race started (sensor)";
-  });
-
-  es.addEventListener("lap", (ev)=>{
-    const data = JSON.parse(ev.data); // { id, ms }
-    // data.ms: 해당 랩의 '구간' 시간(ms)
-    lapCount += 1;
-    cumulativeMs += data.ms;          // ★ 누적 합산
-    renderLapRow(lapCount, data.ms, cumulativeMs);
-  });
-
-  es.addEventListener("race_ended", async (ev)=>{
-    stopUiTimer();
-    statusLine.textContent = "Race completed";
-    // ✅ 평균은 표시/계산하지 않고, 백엔드에서 받은 '등수'만 반영
-    try{
-      const r = await fetch(BASE_URL + "/laps");
-      const d = await r.json();
-
-      // d.name, d.avg_lap_time(ms), d.rank 가 /laps 응답에 있어야 함
-      rcName.textContent = d.name || "-";
-      rcAvg.textContent  = (d.avg_lap_time > 0) ? (d.avg_lap_time/1000).toFixed(2) : "-";
-      rcRank.textContent = (typeof d.rank === "number") ? d.rank : "N/A";
-
-      resultBox.style.display = "block";
-
-      fetchLeaderboard();
-    }catch(e){ console.error(e); }
-  });
-
-  es.onerror = (e)=>{
-    console.error("SSE error", e);
-    statusLine.textContent = "SSE disconnected (fallback polling)";
-    // 필요 시 폴링 로직 추가 가능
-  };
-}
-
-// --- Init ---
-document.addEventListener("DOMContentLoaded", ()=>{
-  fetchLeaderboard();
-  ensureLapTable(); // 헤더/컨테이너 보장
-  initSSE();
+// 애플리케이션 시작
+document.addEventListener("DOMContentLoaded", () => {
+  window.raceApp = new RaceTimerApp();
 });
