@@ -1,5 +1,5 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 
 @dataclass
@@ -38,10 +38,10 @@ class RaceConfig:
 @dataclass
 class AppConfig:
     """애플리케이션 전체 설정"""
-    serial: SerialConfig = SerialConfig()
-    server: ServerConfig = ServerConfig()
-    data: DataConfig = DataConfig()
-    race: RaceConfig = RaceConfig()
+    serial: SerialConfig = field(default_factory=SerialConfig)
+    server: ServerConfig = field(default_factory=ServerConfig)
+    data: DataConfig = field(default_factory=DataConfig)
+    race: RaceConfig = field(default_factory=RaceConfig)
 
 def load_config() -> AppConfig:
     """환경변수에서 설정을 로드"""
