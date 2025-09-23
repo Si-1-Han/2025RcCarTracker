@@ -13,7 +13,7 @@ class SerialConfig:
 @dataclass
 class ServerConfig:
     """웹 서버 설정"""
-    host: str = "127.0.0.1"
+    host: str = "0.0.0.0"  # Docker 컨테이너에서 외부 접근을 위해 0.0.0.0 사용
     port: int = 5000
     debug: bool = False
 
